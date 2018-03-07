@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "axios": "^0.17.1",
+    "flot": "^0.8.0-alpha",
+    "three": "^0.89.0"
+  }
+}

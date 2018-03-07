@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>9001-mission_control</title>
+	<script src="static/axios/dist/axios.min.js"></script>
+	<script src="static/three/build/three.min.js"></script>
+	<script src="static/flot/jquery.js"></script>
+	<script src="static/flot/jquery.flot.js"></script>
+	<script src="static/flot/jquery.flot.resize.js"></script>
+	<style type="text/css">
+		#d2-container {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+		}
+
+		#d2-container > div {
+			flex-grow: 1;
+			min-width: 235px;
+		}
+
+		.plot {
+			height: 235px;
+			width: inherit;			
+		}
+
+		.label {
+			text-align: center;
+		}
+
+		#d3-container {
+			display: inline-block;
+		}
+
+		#d3-wrapper {
+			text-align: center;
+		}
+
+		body {
+			margin: 0 0 0 0;
+		}
+	</style>	
+</head>
+<body>
+	<div id="d2-container">
+		<div>
+			<div class="plot"></div>
+			<div class="label">Long Distance Sensor</div>
+		</div>
+		<div>
+			<div class="plot"></div>
+			<div class="label">Pressure Sensor</div>
+		</div>
+		<div>
+			<div class="plot"></div>
+			<div class="label">Accelerometer</div>
+		</div>
+		<div>
+			<div class="plot"></div>
+			<div class="label">Gyroscope Roll</div>
+		</div>		
+	</div>
+	<div id="d3-wrapper">
+		<div id="d3-container">
+		</div>
+		<div id="d3-label" class="label">Gyroscope 3D</div>
+	</div>
+	<script type="text/javascript">
+		var MIN_CANVAS_SIZE = 400;
+
+		var MAX_POINTS = 30;
+
+		var D2_CONTAINER = document.getElementById('d2-container');
+
+		var D3_CONTAINER = document.getElementById('d3-container');
+		var D3_LABEL = document.getElementById('d3-label');
+
+		var sensorValues = {
+			gyroscopeX: 0,
+			gyroscopeY: 0,
+			longDistanceSensor: [0, 0],
+			pressureSensorPressure: [0, 0],
+			accelerometerZ: [0, 0],
+			gyroscopeRoll: [0, 0]
+		}
+
+		function canvasSize() {
+			var width = window.innerWidth;
+			var height = window.innerHeight - (
+				D2_CONTAINER.clientHeight + D3_LABEL.clientHeight * 2);
+			
+			return [width, height];
+		}
+
+		function onWindowResize() {
+			var dimensions = canvasSize();
+
+			camera.aspect = dimensions[0] / dimensions[1];
+			camera.updateProjectionMatrix();
+
+			renderer.setSize(dimensions[0], dimensions[1]);
+		}
+
+		function render2d() {
+			requestAnimationFrame(render2d);
+
+			now = Date.now();
+			elapsed = now - then;
+
+			if (elapsed > fpsInterval) {
+				then = now - (elapsed % fpsInterval);
+
+				for (var plotId = 0; plotId < plots.length; plotId++) {
+					var point = [];
+
+					switch (plotId) {
+						case 0:
+							point = sensorValues.longDistanceSensor;
+							break;
+						case 1:
+							point = sensorValues.pressureSensorPressure;
+							break;
+						case 2:
+							point = sensorValues.accelerometerZ;
+							break;
+						case 3:
+							point = sensorValues.gyroscopeRoll;
+							break;						
+					}
+
+					var oldPlotData = plots[plotId].getData()[0].data;
+					
+					if (oldPlotData[oldPlotData.length - 1] !== point) {
+						var newPlotData = [oldPlotData.concat([point])];
+
+
+						if (newPlotData[0].length > MAX_POINTS) {
+							newPlotData[0] = newPlotData[0].slice(
+								newPlotData[0].length - MAX_POINTS, newPlotData[0].length);
+						}
+
+						plots[plotId].setData(newPlotData);
+						plots[plotId].setupGrid();
+						plots[plotId].draw();					
+					}
+				}
+			}
+		}
+
+		function render3d() {
+			requestAnimationFrame(render3d);
+
+			mesh.rotation.z = sensorValues.gyroscopeX;
+			mesh.rotation.x = sensorValues.gyroscopeY;
+
+			renderer.render(scene, camera);
+		}		
+
+		var dimensions = canvasSize();
+
+		camera = new THREE.PerspectiveCamera(90, dimensions[0] / dimensions[1], 
+			0.01, 10);
+		camera.position.z = 1;
+
+		scene = new THREE.Scene();
+		scene.background = new THREE.Color(0xffffff);
+
+		geometry = new THREE.BoxGeometry(0.60, 0.60, 0.60);
+		material = new THREE.MeshNormalMaterial();
+
+		mesh = new THREE.Mesh(geometry, material);
+		scene.add(mesh);
+
+		renderer = new THREE.WebGLRenderer({antialias: true});
+		
+		renderer.setSize(dimensions[0], dimensions[1]);
+		D3_CONTAINER.appendChild(renderer.domElement);
+
+		renderer.render(scene, camera);	
+
+		window.addEventListener('resize', onWindowResize, false);
+
+		
+
+		var baseOptions = {
+			lines: {
+				show: true
+			},
+			xaxis: {
+				show: false
+			},
+			legend: {
+				show: false
+			}
+		};
+
+		var overrideOptions = [
+			{
+				yaxis: {
+					min: 0,
+					max: 80,
+					ticks: 2,
+					tickSize: 80 / 4,
+					panRange: [0, 1023]
+				},
+			},
+			{
+				yaxis: {
+					min: 0,
+					max: 1023,
+					ticks: 2,
+					tickSize: 1023 / 2,
+					panRange: [0, 1023]
+				},				
+			},
+			{
+				yaxis: {
+					min: 0,
+					max: 15,
+					ticks: 2,
+					tickSize: 15 / 4,
+					panRange: [0, 1023]
+				},
+			},
+			{
+				yaxis: {
+					min: -30,
+					max: 30,
+					ticks: 2,
+					tickSize: 30 / 2,
+					panRange: [0, 1023]
+				},				
+			}
+		];
+
+		var plots = [];
+
+		for (var divId = 0; divId < D2_CONTAINER.children.length; divId++) {
+			var options = {};
+			
+			for (var attr in baseOptions) { 
+				options[attr] = baseOptions[attr]; 
+			}
+			
+			for (var attr in overrideOptions[divId]) { 
+				options[attr] = overrideOptions[divId][attr]; 
+			}
+
+			plots.push($.plot(D2_CONTAINER.children[divId].children[0], [[]], options));
+		}
+
+
+		var fpsInterval = 1000 / 20;
+		var then = Date.now();
+		var startTime = then;
+
+		render2d();
+		render3d();
+
+		axios.get('/publisher-types').then(function (response) {
+			var PUB_TYPES = response.data;
+
+			ws = new WebSocket('ws://' + location.hostname + ':9001', 'pub.sp.nanomsg.org'); 
+			ws.binaryType = 'arraybuffer'; 
+
+			ws.onopen = function() {
+				console.log('opened');
+			};
+			ws.onclosed = function() {
+				console.log('closed');
+			};
+			
+			ws.onmessage = function(evt) {
+				var msg = new Int16Array(evt.data);
+
+				var pub_type = PUB_TYPES[msg[0]];
+				var value = msg[2];
+
+				switch (pub_type) {
+					case 'LongDistanceSensor':
+						sensorValues.longDistanceSensor = [sensorValues.longDistanceSensor[0] + 1, value];
+						break;
+					case 'PressureSensorPressure':
+						sensorValues.pressureSensorPressure = [sensorValues.pressureSensorPressure[0] + 1, value];
+						break;
+					case 'AccelerometerZ':
+						sensorValues.accelerometerZ = [sensorValues.accelerometerZ[0] + 1, value];
+
+						if (value < 8.0) {
+							sensorValues.gyroscopeRoll = [sensorValues.gyroscopeRoll[0] + 1, null];
+						}
+						break;											
+					case 'GyroscopeX':
+						sensorValues.gyroscopeX = THREE.Math.degToRad(value);
+						sensorValues.gyroscopeRoll = [sensorValues.gyroscopeRoll[0] + 1, value];
+						break;
+					case 'GyroscopeY':
+						sensorValues.gyroscopeY = THREE.Math.degToRad(value);
+						break;
+					default:
+						break;
+				}
+			};	    	
+		});
+
+	</script>
+</body>
+</html>
